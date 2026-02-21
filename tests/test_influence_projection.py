@@ -576,3 +576,64 @@ class TestCollaborativeProjectionAggregator:
         # Result should be pulled toward A's 0.9 but constrained
         assert 0.4 < result.mean_projection < 0.9
         assert result.metadata["agent_count"] == 3
+
+    def test_entropy_metadata_present(self):
+        agg = CollaborativeProjectionAggregator()
+        entries = [
+            AgentProjectionEntry("A", 0.5, _quick_projection(mean_projection=0.6)),
+            AgentProjectionEntry("B", 0.5, _quick_projection(mean_projection=0.4)),
+        ]
+        result = agg.aggregate(entries)
+        entropy_meta = result.metadata["entropy_regularization"]
+        assert "entropy" in entropy_meta
+        assert "threshold" in entropy_meta
+        assert "regularization_applied" in entropy_meta
+
+    def test_low_entropy_regularization_softens_dominance(self):
+        entries = [
+            AgentProjectionEntry(
+                "dominant",
+                0.98,
+                _quick_projection(mean_projection=1.0, confidence_score=0.6),
+            ),
+            AgentProjectionEntry(
+                "reliable_underutilized",
+                0.01,
+                _quick_projection(mean_projection=0.2, confidence_score=0.95),
+            ),
+            AgentProjectionEntry(
+                "other",
+                0.01,
+                _quick_projection(mean_projection=0.1, confidence_score=0.2),
+            ),
+        ]
+        baseline = CollaborativeProjectionAggregator(
+            max_trust_share=1.0,
+            entropy_threshold=0.99,
+            entropy_regularization_strength=0.0,
+            opportunity_boost_strength=0.0,
+        ).aggregate(entries)
+        regularized = CollaborativeProjectionAggregator(
+            max_trust_share=1.0,
+            entropy_threshold=0.99,
+            entropy_regularization_strength=0.7,
+            opportunity_boost_strength=0.9,
+        ).aggregate(entries)
+
+        baseline_weights = {
+            c["agent_id"]: c["normalised_weight"]
+            for c in baseline.metadata["contributions"]
+        }
+        regularized_weights = {
+            c["agent_id"]: c["normalised_weight"]
+            for c in regularized.metadata["contributions"]
+        }
+        assert (
+            regularized.metadata["entropy_regularization"]["regularization_applied"]
+            is True
+        )
+        assert regularized_weights["dominant"] < baseline_weights["dominant"]
+        assert (
+            regularized_weights["reliable_underutilized"]
+            > baseline_weights["reliable_underutilized"]
+        )

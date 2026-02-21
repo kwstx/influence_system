@@ -8,6 +8,7 @@ import uuid
 
 from models.influence_signal import InfluenceSignal
 from models.cooperative_reliability_profile import CooperativeReliabilityProfile, CooperativeReliabilitySnapshot
+from models.influence_entropy import InfluenceEntropy
 
 
 def _clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
@@ -235,6 +236,9 @@ class CollaborativeProjectionAggregator:
         self,
         max_trust_share: float = 0.4,
         min_agents_for_consensus: int = 2,
+        entropy_threshold: float = 0.75,
+        entropy_regularization_strength: float = 0.35,
+        opportunity_boost_strength: float = 0.30,
     ):
         if not 0.0 < max_trust_share <= 1.0:
             raise ValueError("max_trust_share must be in (0, 1]")
@@ -242,6 +246,11 @@ class CollaborativeProjectionAggregator:
             raise ValueError("min_agents_for_consensus must be >= 1")
         self.max_trust_share = max_trust_share
         self.min_agents_for_consensus = min_agents_for_consensus
+        self._influence_entropy = InfluenceEntropy(
+            entropy_threshold=entropy_threshold,
+            dominance_softness=entropy_regularization_strength,
+            opportunity_boost_strength=opportunity_boost_strength,
+        )
 
     # ------------------------------------------------------------------
     # Weight normalisation with consensus cap
@@ -303,7 +312,16 @@ class CollaborativeProjectionAggregator:
             )
 
         below_consensus = len(entries) < self.min_agents_for_consensus
-        weights = self._compute_capped_weights(entries)
+        base_weights = self._compute_capped_weights(entries)
+
+        weights, entropy_snapshot = self._influence_entropy.evaluate(
+            agent_ids=[entry.agent_id for entry in entries],
+            trust_coefficients=[entry.trust_coefficient for entry in entries],
+            base_weights=base_weights,
+            reliability_scores=[
+                entry.projection.confidence_score for entry in entries
+            ],
+        )
 
         # Trust-weighted mean projection
         w_mean = sum(
@@ -345,6 +363,7 @@ class CollaborativeProjectionAggregator:
                 "agent_count": len(entries),
                 "max_trust_share": self.max_trust_share,
                 "below_consensus_threshold": below_consensus,
+                "entropy_regularization": entropy_snapshot.to_dict(),
                 "contributions": contributions,
             },
         )

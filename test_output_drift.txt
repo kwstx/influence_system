@@ -1,0 +1,36 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.14.0, pytest-9.0.2, pluggy-1.6.0
+rootdir: C:\Users\galan\influence_system
+configfile: pytest.ini
+plugins: anyio-4.12.1, asyncio-1.3.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 51 items
+
+tests\test_drift_detection.py .............................F
+
+================================== FAILURES ===================================
+_______________ TestDecayBehaviour.test_exponential_decay_shape _______________
+tests\test_drift_detection.py:295: in test_exponential_decay_shape
+    assert abs(state.current_trust - expected_trust) < 0.05, (
+E   AssertionError: tick 0: expected ~0.9000, got 0.8100
+E   assert 0.08999999999999997 < 0.05
+E    +  where 0.08999999999999997 = abs((0.81 - 0.9))
+E    +    where 0.81 = TrustDecayState(agent_id='A', original_trust=1.0, current_trust=0.81, ema_deviation=0.5, consecutive_above_threshold=2...ve_above_threshold': 2, 'consecutive_below_threshold': 0, 'is_decaying': True, 'decay_ticks': 2, 'recovery_ticks': 0}]).current_trust
+============================== warnings summary ===============================
+tests/test_drift_detection.py::TestDriftObservation::test_absolute_deviation
+tests/test_drift_detection.py::TestDriftObservation::test_signed_deviation_optimistic
+tests/test_drift_detection.py::TestDriftObservation::test_signed_deviation_pessimistic
+tests/test_drift_detection.py::TestDriftObservation::test_zero_deviation
+tests/test_drift_detection.py::TestDriftObservation::test_to_dict_contains_all_keys
+tests/test_drift_detection.py::TestDriftObservation::test_frozen
+  <string>:5: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+
+tests/test_drift_detection.py: 171 warnings
+  C:\Users\galan\influence_system\models\drift_detection.py:240: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    timestamp=timestamp or datetime.utcnow(),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_drift_detection.py::TestDecayBehaviour::test_exponential_decay_shape
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+================= 1 failed, 29 passed, 177 warnings in 0.21s ==================
