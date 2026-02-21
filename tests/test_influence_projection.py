@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from models.influence_signal import InfluenceSignal, DimensionValue
 from models.cooperative_reliability_profile import (
@@ -57,11 +57,15 @@ def _make_signal(
     agent_id: str = "agent_A",
     temporal_weight: float = 0.8,
     synergy: float = 0.6,
+    timestamp: datetime | None = None,
+    context: dict | None = None,
 ) -> InfluenceSignal:
     return InfluenceSignal(
         agent_id=agent_id,
+        timestamp=timestamp or datetime.utcnow(),
         long_term_temporal_impact_weight=DimensionValue(temporal_weight),
         synergy_amplification_contribution=DimensionValue(synergy),
+        context=context or {},
     )
 
 
@@ -421,6 +425,75 @@ class TestTrustWeightedPropagation:
             result = projector.project("A", profile, signals, trust_coefficient=trust)
             assert result.mean_projection >= prev_mean
             prev_mean = result.mean_projection
+
+    def test_delayed_and_cascading_outcomes_compound_with_trust(self):
+        projector = InfluenceProjector(
+            weight_reliability=0.0,
+            weight_synergy=0.0,
+            weight_memory=1.0,
+            weight_slope=0.0,
+        )
+        profile = _make_profile(
+            snapshots=[_make_snapshot(collective_outcome_reliability=0.5, synergy_density_participation=0.5)]
+        )
+        start = datetime(2026, 1, 1, 0, 0, 0)
+        signals = [
+            _make_signal(
+                temporal_weight=0.6,
+                timestamp=start,
+                context={"delayed_cooperative_outcome": True},
+            ),
+            _make_signal(
+                temporal_weight=0.6,
+                timestamp=start + timedelta(days=1),
+                context={
+                    "cascading_cooperative_outcome": True,
+                    "cooperative_cascade_depth": 3,
+                },
+            ),
+            _make_signal(temporal_weight=0.6, timestamp=start + timedelta(days=2)),
+        ]
+        low = projector.project("A", profile, signals, trust_coefficient=0.2)
+        high = projector.project("A", profile, signals, trust_coefficient=1.0)
+
+        assert high.metadata["memory_layer"]["reinforcement_applied"] is True
+        assert high.metadata["factors"]["memory"] > low.metadata["factors"]["memory"]
+        assert high.mean_projection > low.mean_projection
+
+    def test_time_decay_prevents_permanent_memory_entrenchment(self):
+        projector = InfluenceProjector(
+            weight_reliability=0.0,
+            weight_synergy=0.0,
+            weight_memory=1.0,
+            weight_slope=0.0,
+        )
+        profile = _make_profile(
+            snapshots=[_make_snapshot(collective_outcome_reliability=0.5, synergy_density_participation=0.5)]
+        )
+        start = datetime(2026, 1, 1, 0, 0, 0)
+        signals = [
+            _make_signal(
+                temporal_weight=1.0,
+                timestamp=start,
+                context={
+                    "delayed_cooperative_outcome": True,
+                    "cascading_cooperative_outcome": True,
+                    "cooperative_cascade_depth": 5,
+                },
+            ),
+            *[
+                _make_signal(
+                    temporal_weight=0.1,
+                    timestamp=start + timedelta(days=idx + 1),
+                )
+                for idx in range(6)
+            ],
+        ]
+        result = projector.project("A", profile, signals, trust_coefficient=1.0)
+        memory = result.metadata["factors"]["memory"]
+
+        # Durable influence persists (>0.1) but does not remain entrenched near 1.0.
+        assert 0.1 < memory < 0.5
 
 
 # ---------------------------------------------------------------------------

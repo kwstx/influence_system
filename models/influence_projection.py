@@ -121,10 +121,13 @@ class InfluenceProjector:
         synergy_strength = latest_snapshot.synergy_density_participation
 
         # 3. Temporal Impact Memory
+        avg_memory, memory_layer = self._compute_long_horizon_memory(
+            recent_signals=recent_signals,
+            trust_coefficient=trust_coefficient,
+        )
         memory_values = [
             s.long_term_temporal_impact_weight.value for s in recent_signals
         ]
-        avg_memory = mean(memory_values) if memory_values else 0.0
 
         # 4. Calibration Trend Slope
         history_scores = [
@@ -180,9 +183,93 @@ class InfluenceProjector:
                     "memory": avg_memory,
                     "slope": slope,
                 },
+                "memory_layer": memory_layer,
                 "weights": self.weights,
             },
         )
+
+    def _compute_long_horizon_memory(
+        self,
+        recent_signals: List[InfluenceSignal],
+        trust_coefficient: Optional[float],
+    ) -> Tuple[float, Dict[str, Any]]:
+        if not recent_signals:
+            return 0.0, {
+                "mode": "empty",
+                "effective_trust": 0.0,
+                "reinforcement_applied": False,
+                "decay_half_life_steps": self._MEMORY_DECAY_HALF_LIFE_STEPS,
+                "decay_floor": self._MEMORY_DECAY_FLOOR,
+            }
+
+        ordered = sorted(recent_signals, key=lambda s: s.timestamp)
+        n = len(ordered)
+        trust = _clamp(float(trust_coefficient)) if trust_coefficient is not None else 0.0
+        ln2 = log(2.0)
+
+        weighted_sum = 0.0
+        total_weight = 0.0
+        reinforcement_applied = False
+        for i, signal in enumerate(ordered):
+            age_steps = float((n - 1) - i)
+            base_decay = self._MEMORY_DECAY_FLOOR + (1.0 - self._MEMORY_DECAY_FLOOR) * exp(
+                -ln2 * age_steps / self._MEMORY_DECAY_HALF_LIFE_STEPS
+            )
+            reinforcement_strength = self._reinforcement_strength(signal)
+            reinforcement_decay = exp(
+                -ln2 * age_steps / self._REINFORCEMENT_DECAY_HALF_LIFE_STEPS
+            )
+            compound_multiplier = 1.0 + (
+                self._COMPOUND_REINFORCEMENT_GAIN
+                * trust
+                * reinforcement_strength
+                * reinforcement_decay
+            )
+            compound_multiplier = min(self._MAX_COMPOUND_MULTIPLIER, compound_multiplier)
+            if reinforcement_strength > 0.0:
+                reinforcement_applied = True
+            signal_weight = base_decay * compound_multiplier
+            memory_value = _clamp(signal.long_term_temporal_impact_weight.value)
+            weighted_sum += signal_weight * memory_value
+            total_weight += signal_weight
+
+        memory_score = _clamp(weighted_sum / total_weight) if total_weight > 0.0 else 0.0
+        return memory_score, {
+            "mode": "time_decay_compounding",
+            "effective_trust": trust,
+            "reinforcement_applied": reinforcement_applied,
+            "decay_half_life_steps": self._MEMORY_DECAY_HALF_LIFE_STEPS,
+            "decay_floor": self._MEMORY_DECAY_FLOOR,
+            "reinforcement_half_life_steps": self._REINFORCEMENT_DECAY_HALF_LIFE_STEPS,
+            "compound_gain": self._COMPOUND_REINFORCEMENT_GAIN,
+            "max_compound_multiplier": self._MAX_COMPOUND_MULTIPLIER,
+        }
+
+    def _reinforcement_strength(self, signal: InfluenceSignal) -> float:
+        context = signal.context if isinstance(signal.context, dict) else {}
+        delayed = bool(
+            context.get("delayed_cooperative_outcome")
+            or context.get("delayed_outcome")
+        )
+        cascading = bool(
+            context.get("cascading_cooperative_outcome")
+            or context.get("cascading_outcome")
+        )
+        depth_raw = context.get(
+            "cooperative_cascade_depth",
+            context.get("cascade_depth", 0.0),
+        )
+        try:
+            depth = max(0.0, float(depth_raw))
+        except (TypeError, ValueError):
+            depth = 0.0
+
+        strength = 0.0
+        if delayed:
+            strength += 1.0
+        if cascading:
+            strength += 1.0 + min(3.0, depth) / 2.0
+        return strength
 
     def _calculate_slope(self, values: List[float]) -> float:
         if len(values) < 2:
