@@ -7,6 +7,8 @@ from models.cooperative_reliability_profile import (
     CooperativeReliabilitySnapshot,
 )
 from models.influence_projection import (
+    AgentProjectionEntry,
+    CollaborativeProjectionAggregator,
     InfluenceProjectionDistribution,
     InfluenceProjector,
 )
@@ -63,6 +65,22 @@ def _make_signal(
     )
 
 
+def _quick_projection(
+    agent_id: str = "agent_A",
+    mean_projection: float = 0.6,
+    lower_bound: float = 0.4,
+    upper_bound: float = 0.8,
+    confidence_score: float = 0.7,
+) -> InfluenceProjectionDistribution:
+    """Helper to create a canned projection for aggregation tests."""
+    return InfluenceProjectionDistribution(
+        mean_projection=mean_projection,
+        lower_bound=lower_bound,
+        upper_bound=upper_bound,
+        confidence_score=confidence_score,
+    )
+
+
 # ---------------------------------------------------------------------------
 # InfluenceProjectionDistribution tests
 # ---------------------------------------------------------------------------
@@ -110,7 +128,7 @@ class TestInfluenceProjectionDistribution:
 
 
 # ---------------------------------------------------------------------------
-# InfluenceProjector tests
+# InfluenceProjector tests (original, backward-compatible)
 # ---------------------------------------------------------------------------
 
 class TestInfluenceProjector:
@@ -302,3 +320,259 @@ class TestInfluenceProjector:
     def test_slope_calculation_empty(self):
         projector = InfluenceProjector()
         assert projector._calculate_slope([]) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Trust-weighted causal propagation tests
+# ---------------------------------------------------------------------------
+
+class TestTrustWeightedPropagation:
+    """Verify that trust coefficients directly scale causal propagation weights."""
+
+    def test_no_trust_coefficient_is_backward_compatible(self):
+        """Omitting trust_coefficient should behave identically to the old API."""
+        projector = InfluenceProjector()
+        profile = _make_profile()
+        signals = [_make_signal()]
+
+        result_no_trust = projector.project("agent_A", profile, signals)
+        result_none = projector.project("agent_A", profile, signals, trust_coefficient=None)
+
+        assert result_no_trust.mean_projection == result_none.mean_projection
+        assert result_no_trust.metadata.get("propagation_scale") == 1.0
+
+    def test_high_trust_amplifies_projection(self):
+        """Trust = 1.0 should produce a higher mean projection than trust = 0.5."""
+        projector = InfluenceProjector()
+        profile = _make_profile(
+            snapshots=[_make_snapshot(collective_outcome_reliability=0.6, synergy_density_participation=0.5)]
+        )
+        signals = [_make_signal(temporal_weight=0.5)]
+
+        result_mid = projector.project("A", profile, signals, trust_coefficient=0.5)
+        result_high = projector.project("A", profile, signals, trust_coefficient=1.0)
+
+        assert result_high.mean_projection > result_mid.mean_projection
+
+    def test_low_trust_attenuates_projection(self):
+        """Very low trust should reduce the mean projection."""
+        projector = InfluenceProjector()
+        profile = _make_profile(
+            snapshots=[_make_snapshot(collective_outcome_reliability=0.7, synergy_density_participation=0.6)]
+        )
+        signals = [_make_signal(temporal_weight=0.6)]
+
+        result_baseline = projector.project("A", profile, signals, trust_coefficient=0.5)
+        result_low = projector.project("A", profile, signals, trust_coefficient=0.1)
+
+        assert result_low.mean_projection < result_baseline.mean_projection
+
+    def test_trust_coefficient_in_metadata(self):
+        """Metadata should record the trust coefficient and computed propagation scale."""
+        projector = InfluenceProjector()
+        profile = _make_profile()
+        signals = [_make_signal()]
+        result = projector.project("A", profile, signals, trust_coefficient=0.8)
+
+        assert result.metadata["trust_coefficient"] == 0.8
+        assert "propagation_scale" in result.metadata
+        # trust=0.8 -> scale = 2 * 0.8 = 1.6
+        assert abs(result.metadata["propagation_scale"] - 1.6) < 1e-9
+
+    def test_propagation_scale_clamped_at_bounds(self):
+        """Propagation scale must be clamped within [_MIN, _MAX]."""
+        projector = InfluenceProjector()
+        profile = _make_profile()
+        signals = [_make_signal()]
+
+        # Trust = 0.0 -> raw_scale = 0.0, should be clamped to _MIN (0.1)
+        result_zero = projector.project("A", profile, signals, trust_coefficient=0.0)
+        assert result_zero.metadata["propagation_scale"] == projector._MIN_PROPAGATION_SCALE
+
+        # Trust = 5.0 (hypothetical extreme) -> raw_scale = 10.0, clamped to _MAX (2.0)
+        result_extreme = projector.project("A", profile, signals, trust_coefficient=5.0)
+        assert result_extreme.metadata["propagation_scale"] == projector._MAX_PROPAGATION_SCALE
+
+    def test_projection_stays_in_unit_range_regardless_of_trust(self):
+        """Even with extreme trust values, projections must stay in [0, 1]."""
+        projector = InfluenceProjector()
+        for trust in [0.0, 0.01, 0.25, 0.5, 0.75, 1.0, 2.0]:
+            for rel in [0.1, 0.5, 0.9]:
+                profile = _make_profile(
+                    snapshots=[_make_snapshot(
+                        collective_outcome_reliability=rel,
+                        synergy_density_participation=rel,
+                    )]
+                )
+                signals = [_make_signal(temporal_weight=rel)]
+                result = projector.project("X", profile, signals, trust_coefficient=trust)
+                assert 0.0 <= result.lower_bound <= result.mean_projection <= result.upper_bound <= 1.0
+
+    def test_proportionality_of_trust_influence(self):
+        """Higher trust should monotonically increase (or equal) the mean projection."""
+        projector = InfluenceProjector()
+        profile = _make_profile(
+            snapshots=[_make_snapshot(collective_outcome_reliability=0.5, synergy_density_participation=0.4)]
+        )
+        signals = [_make_signal(temporal_weight=0.4)]
+
+        prev_mean = -1.0
+        for trust in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+            result = projector.project("A", profile, signals, trust_coefficient=trust)
+            assert result.mean_projection >= prev_mean
+            prev_mean = result.mean_projection
+
+
+# ---------------------------------------------------------------------------
+# CollaborativeProjectionAggregator tests
+# ---------------------------------------------------------------------------
+
+class TestCollaborativeProjectionAggregator:
+
+    def test_empty_entries_returns_neutral(self):
+        agg = CollaborativeProjectionAggregator()
+        result = agg.aggregate([])
+        assert result.mean_projection == 0.5
+        assert result.metadata.get("status") == "no_entries"
+
+    def test_single_agent_gets_full_weight(self):
+        """With one agent, the aggregation should match that agent's projection."""
+        agg = CollaborativeProjectionAggregator(max_trust_share=1.0, min_agents_for_consensus=1)
+        proj = _quick_projection(mean_projection=0.7, lower_bound=0.5, upper_bound=0.9)
+        entry = AgentProjectionEntry(agent_id="A", trust_coefficient=0.9, projection=proj)
+        result = agg.aggregate([entry])
+
+        assert abs(result.mean_projection - 0.7) < 1e-9
+        assert result.metadata["agent_count"] == 1
+
+    def test_high_trust_agent_dominates_within_cap(self):
+        """
+        A high-trust agent should pull the shared projection towards its own
+        projection more than a low-trust agent.
+        """
+        agg = CollaborativeProjectionAggregator(max_trust_share=0.6)
+        high_proj = _quick_projection(mean_projection=0.9)
+        low_proj = _quick_projection(mean_projection=0.3)
+
+        entries = [
+            AgentProjectionEntry("high", trust_coefficient=0.9, projection=high_proj),
+            AgentProjectionEntry("low", trust_coefficient=0.1, projection=low_proj),
+        ]
+        result = agg.aggregate(entries)
+
+        # The result should be closer to 0.9 than 0.3
+        assert result.mean_projection > 0.6
+
+    def test_consensus_cap_prevents_single_agent_domination(self):
+        """
+        Even when one agent has massively higher trust, the cap should prevent
+        it from commanding more than max_trust_share of the total weight.
+        """
+        agg = CollaborativeProjectionAggregator(max_trust_share=0.4)
+        dominant_proj = _quick_projection(mean_projection=1.0)
+        others = [_quick_projection(mean_projection=0.0) for _ in range(4)]
+
+        entries = [
+            AgentProjectionEntry("dominant", trust_coefficient=0.99, projection=dominant_proj),
+            *[
+                AgentProjectionEntry(f"other_{i}", trust_coefficient=0.01, projection=p)
+                for i, p in enumerate(others)
+            ],
+        ]
+        result = agg.aggregate(entries)
+
+        # If dominant had uncapped influence its projection would be ~1.0.
+        # With the cap at 0.4, the mean cannot exceed 0.4 * 1.0 + 0.6 * 0.0 = 0.4
+        assert result.mean_projection <= 0.41  # small tolerance for redistribution effects
+
+    def test_equal_trust_yields_equal_weights(self):
+        """Agents with identical trust should get equal normalised weights."""
+        agg = CollaborativeProjectionAggregator()
+        entries = [
+            AgentProjectionEntry(f"a{i}", trust_coefficient=0.5, projection=_quick_projection(mean_projection=0.5))
+            for i in range(4)
+        ]
+        result = agg.aggregate(entries)
+        contributions = result.metadata["contributions"]
+        weights = [c["normalised_weight"] for c in contributions]
+        assert all(abs(w - 0.25) < 1e-6 for w in weights)
+
+    def test_below_consensus_threshold_flag(self):
+        """Result should be flagged when fewer agents than min_agents_for_consensus."""
+        agg = CollaborativeProjectionAggregator(min_agents_for_consensus=3)
+        entries = [
+            AgentProjectionEntry("A", 0.5, _quick_projection()),
+            AgentProjectionEntry("B", 0.5, _quick_projection()),
+        ]
+        result = agg.aggregate(entries)
+        assert result.metadata["below_consensus_threshold"] is True
+
+    def test_above_consensus_threshold_flag(self):
+        """Result should NOT be flagged when enough agents participate."""
+        agg = CollaborativeProjectionAggregator(min_agents_for_consensus=2)
+        entries = [
+            AgentProjectionEntry("A", 0.5, _quick_projection()),
+            AgentProjectionEntry("B", 0.5, _quick_projection()),
+        ]
+        result = agg.aggregate(entries)
+        assert result.metadata["below_consensus_threshold"] is False
+
+    def test_all_zero_trust_falls_back_to_equal(self):
+        """When all trusts are zero the aggregator should use equal weights."""
+        agg = CollaborativeProjectionAggregator()
+        entries = [
+            AgentProjectionEntry("A", 0.0, _quick_projection(mean_projection=0.2)),
+            AgentProjectionEntry("B", 0.0, _quick_projection(mean_projection=0.8)),
+        ]
+        result = agg.aggregate(entries)
+        # Equal weight: (0.2 + 0.8) / 2 = 0.5
+        assert abs(result.mean_projection - 0.5) < 1e-9
+
+    def test_invalid_max_trust_share_raises(self):
+        with pytest.raises(ValueError):
+            CollaborativeProjectionAggregator(max_trust_share=0.0)
+        with pytest.raises(ValueError):
+            CollaborativeProjectionAggregator(max_trust_share=-0.1)
+
+    def test_invalid_min_agents_raises(self):
+        with pytest.raises(ValueError):
+            CollaborativeProjectionAggregator(min_agents_for_consensus=0)
+
+    def test_contributions_metadata_is_complete(self):
+        """Each agent's contribution should be auditable from metadata."""
+        agg = CollaborativeProjectionAggregator()
+        entries = [
+            AgentProjectionEntry("A", 0.7, _quick_projection(mean_projection=0.6)),
+            AgentProjectionEntry("B", 0.3, _quick_projection(mean_projection=0.4)),
+        ]
+        result = agg.aggregate(entries)
+        contributions = result.metadata["contributions"]
+        assert len(contributions) == 2
+        for c in contributions:
+            assert "agent_id" in c
+            assert "trust_coefficient" in c
+            assert "normalised_weight" in c
+            assert "individual_mean" in c
+
+    def test_aggregated_output_stays_in_unit_range(self):
+        """Result should always be within [0, 1]."""
+        agg = CollaborativeProjectionAggregator()
+        entries = [
+            AgentProjectionEntry("A", 1.0, _quick_projection(mean_projection=1.0, lower_bound=0.9, upper_bound=1.0)),
+            AgentProjectionEntry("B", 0.0, _quick_projection(mean_projection=0.0, lower_bound=0.0, upper_bound=0.1)),
+        ]
+        result = agg.aggregate(entries)
+        assert 0.0 <= result.lower_bound <= result.mean_projection <= result.upper_bound <= 1.0
+
+    def test_three_agent_weighted_projection(self):
+        """Smoke test with three agents at different trust levels."""
+        agg = CollaborativeProjectionAggregator(max_trust_share=0.5)
+        entries = [
+            AgentProjectionEntry("A", 0.8, _quick_projection(mean_projection=0.9)),
+            AgentProjectionEntry("B", 0.5, _quick_projection(mean_projection=0.5)),
+            AgentProjectionEntry("C", 0.2, _quick_projection(mean_projection=0.2)),
+        ]
+        result = agg.aggregate(entries)
+        # Result should be pulled toward A's 0.9 but constrained
+        assert 0.4 < result.mean_projection < 0.9
+        assert result.metadata["agent_count"] == 3
