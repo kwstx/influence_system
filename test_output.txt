@@ -1,0 +1,50 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.14.0, pytest-9.0.2, pluggy-1.6.0 -- C:\Python314\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\galan\influence_system
+plugins: anyio-4.12.1, asyncio-1.3.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 25 items
+
+tests/test_cooperative_reliability_profile.py::test_generates_structured_profile_from_collective_metrics PASSED [  4%]
+tests/test_cooperative_reliability_profile.py::test_persists_reliability_evolution_over_time PASSED [  8%]
+tests/test_cooperative_reliability_profile.py::test_clamps_metric_inputs_to_collective_range PASSED [ 12%]
+tests/test_influence_projection.py::TestInfluenceProjectionDistribution::test_creation_and_fields PASSED [ 16%]
+tests/test_influence_projection.py::TestInfluenceProjectionDistribution::test_to_dict_contains_all_keys PASSED [ 20%]
+tests/test_influence_projection.py::TestInfluenceProjectionDistribution::test_frozen PASSED [ 24%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_neutral_projection_on_empty_signals PASSED [ 28%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_high_performing_agent PASSED [ 32%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_declining_agent PASSED [ 36%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_improving_agent_trend_boost PASSED [ 40%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_bounds_always_ordered PASSED [ 44%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_bounds_within_zero_one PASSED [ 48%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_custom_weights PASSED [ 52%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_metadata_includes_factors PASSED [ 56%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_high_variance_signals_widen_bounds PASSED [ 60%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_single_signal_produces_valid_output PASSED [ 64%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_slope_calculation_flat PASSED [ 68%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_slope_calculation_increasing PASSED [ 72%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_slope_calculation_decreasing PASSED [ 76%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_slope_calculation_single_point PASSED [ 80%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_slope_calculation_empty PASSED [ 84%]
+tests/test_influence_signal.py::test_influence_signal_creation PASSED    [ 88%]
+tests/test_influence_signal.py::test_influence_signal_serialization PASSED [ 92%]
+tests/test_influence_signal.py::test_dimension_querying PASSED           [ 96%]
+tests/test_influence_signal.py::test_no_aggregate_score PASSED           [100%]
+
+============================== warnings summary ===============================
+tests/test_cooperative_reliability_profile.py: 4 warnings
+tests/test_influence_projection.py: 25 warnings
+  <string>:7: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+
+tests/test_cooperative_reliability_profile.py: 4 warnings
+tests/test_influence_projection.py: 34 warnings
+tests/test_influence_signal.py: 4 warnings
+  <string>:5: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+
+tests/test_influence_projection.py: 40 warnings
+  C:\Users\galan\influence_system\tests\test_influence_projection.py:31: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    generated_at=datetime.utcnow(),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+====================== 25 passed, 111 warnings in 0.24s =======================
