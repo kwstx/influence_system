@@ -1,0 +1,72 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.14.0, pytest-9.0.2, pluggy-1.6.0 -- C:\Python314\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\galan\influence_system
+plugins: anyio-4.12.1, asyncio-1.3.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 47 items
+
+tests/test_cooperative_reliability_profile.py::test_generates_structured_profile_from_collective_metrics PASSED [  2%]
+tests/test_cooperative_reliability_profile.py::test_persists_reliability_evolution_over_time PASSED [  4%]
+tests/test_cooperative_reliability_profile.py::test_clamps_metric_inputs_to_collective_range PASSED [  6%]
+tests/test_cooperative_reliability_profile.py::test_trust_weighting_function_is_continuous_and_versioned PASSED [  8%]
+tests/test_cooperative_reliability_profile.py::test_profile_uses_parameterized_trust_weighting PASSED [ 10%]
+tests/test_influence_projection.py::TestInfluenceProjectionDistribution::test_creation_and_fields PASSED [ 12%]
+tests/test_influence_projection.py::TestInfluenceProjectionDistribution::test_to_dict_contains_all_keys PASSED [ 14%]
+tests/test_influence_projection.py::TestInfluenceProjectionDistribution::test_frozen PASSED [ 17%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_neutral_projection_on_empty_signals PASSED [ 19%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_high_performing_agent PASSED [ 21%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_declining_agent PASSED [ 23%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_improving_agent_trend_boost PASSED [ 25%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_bounds_always_ordered PASSED [ 27%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_bounds_within_zero_one PASSED [ 29%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_custom_weights PASSED [ 31%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_metadata_includes_factors PASSED [ 34%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_high_variance_signals_widen_bounds PASSED [ 36%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_single_signal_produces_valid_output PASSED [ 38%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_slope_calculation_flat PASSED [ 40%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_slope_calculation_increasing PASSED [ 42%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_slope_calculation_decreasing PASSED [ 44%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_slope_calculation_single_point PASSED [ 46%]
+tests/test_influence_projection.py::TestInfluenceProjector::test_slope_calculation_empty PASSED [ 48%]
+tests/test_influence_projection.py::TestTrustWeightedPropagation::test_no_trust_coefficient_is_backward_compatible PASSED [ 51%]
+tests/test_influence_projection.py::TestTrustWeightedPropagation::test_high_trust_amplifies_projection PASSED [ 53%]
+tests/test_influence_projection.py::TestTrustWeightedPropagation::test_low_trust_attenuates_projection PASSED [ 55%]
+tests/test_influence_projection.py::TestTrustWeightedPropagation::test_trust_coefficient_in_metadata PASSED [ 57%]
+tests/test_influence_projection.py::TestTrustWeightedPropagation::test_propagation_scale_clamped_at_bounds PASSED [ 59%]
+tests/test_influence_projection.py::TestTrustWeightedPropagation::test_projection_stays_in_unit_range_regardless_of_trust PASSED [ 61%]
+tests/test_influence_projection.py::TestTrustWeightedPropagation::test_proportionality_of_trust_influence PASSED [ 63%]
+tests/test_influence_projection.py::TestCollaborativeProjectionAggregator::test_empty_entries_returns_neutral PASSED [ 65%]
+tests/test_influence_projection.py::TestCollaborativeProjectionAggregator::test_single_agent_gets_full_weight PASSED [ 68%]
+tests/test_influence_projection.py::TestCollaborativeProjectionAggregator::test_high_trust_agent_dominates_within_cap PASSED [ 70%]
+tests/test_influence_projection.py::TestCollaborativeProjectionAggregator::test_consensus_cap_prevents_single_agent_domination PASSED [ 72%]
+tests/test_influence_projection.py::TestCollaborativeProjectionAggregator::test_equal_trust_yields_equal_weights PASSED [ 74%]
+tests/test_influence_projection.py::TestCollaborativeProjectionAggregator::test_below_consensus_threshold_flag PASSED [ 76%]
+tests/test_influence_projection.py::TestCollaborativeProjectionAggregator::test_above_consensus_threshold_flag PASSED [ 78%]
+tests/test_influence_projection.py::TestCollaborativeProjectionAggregator::test_all_zero_trust_falls_back_to_equal PASSED [ 80%]
+tests/test_influence_projection.py::TestCollaborativeProjectionAggregator::test_invalid_max_trust_share_raises PASSED [ 82%]
+tests/test_influence_projection.py::TestCollaborativeProjectionAggregator::test_invalid_min_agents_raises PASSED [ 85%]
+tests/test_influence_projection.py::TestCollaborativeProjectionAggregator::test_contributions_metadata_is_complete PASSED [ 87%]
+tests/test_influence_projection.py::TestCollaborativeProjectionAggregator::test_aggregated_output_stays_in_unit_range PASSED [ 89%]
+tests/test_influence_projection.py::TestCollaborativeProjectionAggregator::test_three_agent_weighted_projection PASSED [ 91%]
+tests/test_influence_signal.py::test_influence_signal_creation PASSED    [ 93%]
+tests/test_influence_signal.py::test_influence_signal_serialization PASSED [ 95%]
+tests/test_influence_signal.py::test_dimension_querying PASSED           [ 97%]
+tests/test_influence_signal.py::test_no_aggregate_score PASSED           [100%]
+
+============================== warnings summary ===============================
+tests/test_cooperative_reliability_profile.py: 6 warnings
+tests/test_influence_projection.py: 101 warnings
+  <string>:7: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+
+tests/test_cooperative_reliability_profile.py: 6 warnings
+tests/test_influence_projection.py: 61 warnings
+tests/test_influence_signal.py: 4 warnings
+  <string>:5: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+
+tests/test_influence_projection.py: 67 warnings
+  C:\Users\galan\influence_system\tests\test_influence_projection.py:33: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    generated_at=datetime.utcnow(),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+====================== 47 passed, 245 warnings in 1.16s =======================
