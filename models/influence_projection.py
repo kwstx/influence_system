@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
-from math import sqrt
+from math import exp, log, sqrt
 from statistics import mean
 from typing import Dict, List, Optional, Any, Tuple
 import uuid
@@ -53,6 +53,11 @@ class InfluenceProjector:
     # or exploding an individual projection beyond interpretable limits.
     _MIN_PROPAGATION_SCALE: float = 0.1
     _MAX_PROPAGATION_SCALE: float = 2.0
+    _MEMORY_DECAY_HALF_LIFE_STEPS: float = 6.0
+    _MEMORY_DECAY_FLOOR: float = 0.2
+    _REINFORCEMENT_DECAY_HALF_LIFE_STEPS: float = 3.0
+    _COMPOUND_REINFORCEMENT_GAIN: float = 0.45
+    _MAX_COMPOUND_MULTIPLIER: float = 2.2
 
     def __init__(
         self,

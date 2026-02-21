@@ -283,16 +283,18 @@ class TestDecayBehaviour:
         dd = DriftDetector(params)
         dd.register_agent("A", 1.0)
 
-        # One tick to start decay (sustained_ticks_to_decay=1 means first
-        # above-threshold triggers is_decaying)
-        dd.record_observation("A", 0.5, 0.0)  # tick 1: crosses threshold
-        # Now 5 more decay ticks
-        expected_trust = 1.0
+        # With sustained_ticks_to_decay=1, the very first above-threshold
+        # observation enters decay and applies the first decay tick.
+        state_0 = dd.record_observation("A", 0.5, 0.0)
+        # First decay tick has already been applied
+        expected_trust = 1.0 * (1.0 - rate)
+        assert abs(state_0.current_trust - expected_trust) < 1e-9
+
+        # Now 5 more decay ticks – each should multiply by (1 - rate)
         for tick in range(5):
             state = dd.record_observation("A", 0.5, 0.0)
             expected_trust *= (1.0 - rate)
-            # Allow small tolerance for the first tick's EMA lag
-            assert abs(state.current_trust - expected_trust) < 0.05, (
+            assert abs(state.current_trust - expected_trust) < 1e-9, (
                 f"tick {tick}: expected ~{expected_trust:.4f}, got {state.current_trust:.4f}"
             )
 
